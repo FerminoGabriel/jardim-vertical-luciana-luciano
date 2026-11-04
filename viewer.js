@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import {createVegetation} from './vegetation.js?v=20';
+import {createVegetation} from './vegetation.js?v=21';
 import {createArchitecture} from './architecture.js?v=15';
 import {OrbitControls} from './vendor/three/examples/jsm/controls/OrbitControls.js';
 const canvas=document.querySelector('canvas');
 try{
-const renderer=new THREE.WebGLRenderer({canvas,antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.35;
+const mobileMode=matchMedia('(pointer:coarse)').matches||innerWidth<800;const renderer=new THREE.WebGLRenderer({canvas,antialias:!mobileMode,powerPreference:'low-power'});renderer.setPixelRatio(mobileMode?.85:Math.min(devicePixelRatio,1.5));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.35;
 const scene=new THREE.Scene();scene.background=new THREE.Color('#e9eae2');
 const camera=new THREE.OrthographicCamera(-6,6,4,-4,.001,150);const controls=new OrbitControls(camera,canvas);controls.enableDamping=false;controls.screenSpacePanning=true;controls.minZoom=.25;controls.maxZoom=25;
 const ambient=new THREE.HemisphereLight(0xffffff,0x79806b,2.5);scene.add(ambient);const sun=new THREE.DirectionalLight(0xfff6e3,3);sun.position.set(-4,8,6);scene.add(sun);const fill=new THREE.DirectionalLight(0xe4f2ff,1.5);fill.position.set(6,4,-2);scene.add(fill);
@@ -37,12 +37,15 @@ rod(g,[0,-.0205,.492],[0,-.0205,.5],.0253,black);rod(g,[0,-.0205,.490],[0,-.0205
 return g;}
 const assembly=new THREE.Group();scene.add(assembly);const wall=new THREE.Group(),modules=new THREE.Group(),lamps=new THREE.Group();assembly.add(wall,modules,lamps);const architecture=createArchitecture(wall);
 const proto=moduleModel();for(let row=0;row<14;row++)for(let col=0;col<19;col++){if(row===1&&col===16)continue;const m=proto.clone();m.position.set(.15+col*.5,.225+row*.3,.0005);m.userData.label=`M${String(row*19+col+1).padStart(3,'0')} · coluna ${col+1}, fileira ${row+1}`;modules.add(m);}
-const vegetation=createVegetation(assembly);document.getElementById('vegetation').onchange=e=>{vegetation.visible=e.target.checked;render();};
+// Batch repeated module meshes by shared geometry/material, instead of thousands of draw calls.
+function batchRepeatedMeshes(group){group.updateMatrixWorld(true);const inv=group.matrixWorld.clone().invert(),buckets=new Map();group.traverse(o=>{if(!o.isMesh)return;const key=o.geometry.uuid+':'+o.material.uuid;if(!buckets.has(key))buckets.set(key,{geometry:o.geometry,material:o.material,matrices:[]});buckets.get(key).matrices.push(new THREE.Matrix4().multiplyMatrices(inv,o.matrixWorld));});group.clear();for(const b of buckets.values()){const inst=new THREE.InstancedMesh(b.geometry,b.material,b.matrices.length);b.matrices.forEach((m,i)=>inst.setMatrixAt(i,m));inst.computeBoundingSphere();group.add(inst);}}
+batchRepeatedMeshes(modules);
+const vegetation=createVegetation(assembly,mobileMode);document.getElementById('vegetation').onchange=e=>{vegetation.visible=e.target.checked;render();};
 const lampProto=lampModel();
 // Base rear surface touches the internal rear face at z=4 mm.
 // Only mounting screw shanks penetrate the module rear and enter the wall.
 const projectedLights=[];
-function addEmission(lamp){const spot=new THREE.SpotLight(0xffc58a,0,1.8,Math.PI/3,.65,2);spot.position.set(0,-.0205,.485);const target=new THREE.Object3D();target.position.set(0,-.17,-.3);lamp.add(target,spot);spot.target=target;projectedLights.push(spot);}
+function addEmission(lamp){const spot=new THREE.SpotLight(0xffc58a,0,1.8,Math.PI/3,.65,2);spot.position.set(0,-.0205,.485);const target=new THREE.Object3D();target.position.set(0,-.17,-.3);lamp.add(target,spot);spot.target=target;spot.visible=false;projectedLights.push(spot);}
 // Alternate 7/6/7/6 bands. Even bands are centred in the gaps of the odd bands.
 const lampHeights=[.750,1.850,2.850,3.950];
 const lampCounts=[7,6,7,6];let lampNumber=0;
@@ -113,18 +116,20 @@ for(const [x,name] of [[8.30,'Torneira preta · uso'],[8.55,'Torneira preta · i
 }
 document.getElementById('plumbing').onchange=e=>{plumbing.visible=e.target.checked;render();};
 const display=new THREE.Group();scene.add(display);display.visible=false;let mode='geral',span=7.8;
-function render(){const w=canvas.clientWidth,h=canvas.clientHeight;renderer.setSize(w,h,false);const aspect=w/h;const s=mode==='modulo'||mode==='luminaria'?Math.max(span,span/aspect):Math.max(span,12/aspect);camera.left=-s*aspect/2;camera.right=s*aspect/2;camera.top=s/2;camera.bottom=-s/2;camera.updateProjectionMatrix();renderer.render(scene,camera);}
+let renderPending=false,lastWidth=0,lastHeight=0;function render(){if(renderPending)return;renderPending=true;requestAnimationFrame(()=>{renderPending=false;drawFrame();});}
+function drawFrame(){const w=canvas.clientWidth,h=canvas.clientHeight;if(w!==lastWidth||h!==lastHeight){renderer.setSize(w,h,false);lastWidth=w;lastHeight=h;}const aspect=w/h;const s=mode==='modulo'||mode==='luminaria'?Math.max(span,span/aspect):Math.max(span,12/aspect);camera.left=-s*aspect/2;camera.right=s*aspect/2;camera.top=s/2;camera.bottom=-s/2;camera.updateProjectionMatrix();renderer.render(scene,camera);}
 function pose(eye,target){camera.zoom=1;camera.position.set(...eye);controls.target.set(...target);controls.update();render();}
 const titles={geral:'Perspectiva geral',frente:'Elevação frontal · 19 × 14',lado:'Perfil · parede de 200 mm',topo:'Vista superior',modulo:'Plastwall 12 L · inspeção 3D',luminaria:'Direct Light DL AR8 · inspeção 3D'};
 function view(v){mode=v;document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===v));document.querySelector('#viewLabel').textContent=titles[v];assembly.visible=!['modulo','luminaria'].includes(v);display.clear();display.visible=!assembly.visible;camera.up.set(0,1,0);span=7.8;
 if(v==='modulo'){display.add(proto.clone());span=.62;pose([.85,.53,.85],[.25,.15,.09]);}
-else if(v==='luminaria'){const detail=lampProto.clone();addEmission(detail);projectedLights.at(-1).intensity=document.getElementById('glow').checked?4:0;display.add(detail);span=.65;pose([.65,.37,.78],[0,-.01,.25]);}
+else if(v==='luminaria'){const detail=lampProto.clone();addEmission(detail);projectedLights.at(-1).intensity=document.getElementById('glow').checked?4:0;projectedLights.at(-1).visible=document.getElementById('glow').checked&&!mobileMode;display.add(detail);span=.65;pose([.65,.37,.78],[0,-.01,.25]);}
 else if(v==='frente')pose([4.9,2.325,15],[4.9,2.325,0]);
 else if(v==='lado'){span=6;pose([16,2.325,.15],[4.9,2.325,.15]);}
 else if(v==='topo'){camera.up.set(0,0,-1);pose([4.9,16,.15],[4.9,2.325,.15]);}
 else pose([10.7,6.5,14],[4.9,2.1,.5]);render();}
 for(const b of document.querySelectorAll('[data-view]'))b.onclick=()=>view(b.dataset.view);
-for(const [id,g] of Object.entries({wall,modules,lamps}))document.getElementById(id).onchange=e=>{g.visible=e.target.checked;render();};for(const [id,g] of Object.entries(architecture)){const el=document.getElementById(id);if(el)el.onchange=e=>{g.visible=e.target.checked;render();};}document.getElementById('glow').onchange=e=>{const on=e.target.checked;diffuser.emissiveIntensity=on?7:0;projectedLights.forEach(l=>l.intensity=on?4:0);ambient.intensity=on?.65:2.5;sun.intensity=on?1:3;fill.intensity=on?.35:1.5;if(on){lamps.visible=true;document.getElementById('lamps').checked=true;}render();};for(const [id,keys] of Object.entries({finishLayer:['paint','skim'],renderLayer:['waterproof','render','scratch'],masonryLayer:['bricks','mortar','back','structure']})){document.getElementById(id).onchange=e=>{keys.forEach(k=>architecture[k].visible=e.target.checked);render();};}document.getElementById('environment').onchange=e=>{for(const id of ['floor','left','stone','right','door','drain'])architecture[id].visible=e.target.checked;render();};document.getElementById('fit').onclick=()=>view(mode);controls.addEventListener('change',render);window.addEventListener('resize',render);
+for(const [id,g] of Object.entries({wall,modules,lamps}))document.getElementById(id).onchange=e=>{g.visible=e.target.checked;render();};for(const [id,g] of Object.entries(architecture)){const el=document.getElementById(id);if(el)el.onchange=e=>{g.visible=e.target.checked;render();};}document.getElementById('glow').onchange=e=>{const on=e.target.checked;diffuser.emissiveIntensity=on?7:0;projectedLights.forEach(l=>{l.visible=on&&!mobileMode;l.intensity=on?4:0;});ambient.intensity=on?.65:2.5;sun.intensity=on?1:3;fill.intensity=on?.35:1.5;if(on){lamps.visible=true;document.getElementById('lamps').checked=true;}render();};for(const [id,keys] of Object.entries({finishLayer:['paint','skim'],renderLayer:['waterproof','render','scratch'],masonryLayer:['bricks','mortar','back','structure']})){document.getElementById(id).onchange=e=>{keys.forEach(k=>architecture[k].visible=e.target.checked);render();};}document.getElementById('environment').onchange=e=>{for(const id of ['floor','left','stone','right','door','drain'])architecture[id].visible=e.target.checked;render();};document.getElementById('fit').onclick=()=>view(mode);controls.addEventListener('change',render);window.addEventListener('resize',render);
 const ray=new THREE.Raycaster(),pointer=new THREE.Vector2();let start;canvas.addEventListener('pointerdown',e=>start=[e.clientX,e.clientY]);canvas.addEventListener('pointerup',e=>{if(!start||Math.hypot(e.clientX-start[0],e.clientY-start[1])>4||!assembly.visible)return;const r=canvas.getBoundingClientRect();pointer.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);ray.setFromCamera(pointer,camera);const hits=ray.intersectObjects([...(plumbing.visible?plumbing.children:[]),...(electrical.visible?electrical.children:[]),...(modules.visible?modules.children:[]),...(lamps.visible?lamps.children:[])],true);if(hits.length){let o=hits[0].object;while(o&&!o.userData.label)o=o.parent;if(o)document.querySelector('#viewLabel').textContent=o.userData.label;}});
+if(mobileMode){document.querySelector('.badge span').textContent='MODO LEVE';document.querySelector('label:has(#glow)').lastChild.textContent=' Acender difusores · modo leve';}
 view('geral');
 }catch(e){const el=document.getElementById('error');el.hidden=false;el.textContent='Não foi possível abrir o modelo 3D: '+e.message;}
