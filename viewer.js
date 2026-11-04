@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {createVegetation} from './vegetation.js?v=21';
-import {createArchitecture} from './architecture.js?v=15';
+import {createArchitecture} from './architecture.js?v=22';
 import {OrbitControls} from './vendor/three/examples/jsm/controls/OrbitControls.js';
 const canvas=document.querySelector('canvas');
 try{
@@ -62,8 +62,8 @@ const pointScrewMat=new THREE.MeshStandardMaterial({color:0x747c7a,roughness:.35
 const lidMat=new THREE.MeshStandardMaterial({color:0x87c5db,transparent:true,opacity:.58,depthTest:true,depthWrite:true});
 let conduitLength=0;
 function conduit(a,b){conduitLength+=new THREE.Vector3(...a).distanceTo(new THREE.Vector3(...b));const o=rod(electrical,a,b,.01,conduitMat);o.renderOrder=30;}
-function electricalBox(x,y,name,junction=false){const w=junction?.08:.05,h=.10,d=.045;const g=new THREE.Group();
-if(!junction){const moduleCol=Math.floor((x-.15)/.5),moduleX=.15+moduleCol*.5;const localX=x-moduleX;const pointX=moduleX+Math.max(.06,Math.min(.44,localX));const moduleY=.225+Math.floor((y-.225)/.3)*.3;const pointY=moduleY+.185;
+function electricalBox(x,y,name,junction=false){const w=.05,h=.10,d=.045;const g=new THREE.Group();
+if(!junction){const moduleCol=Math.floor((x-.15)/.5),moduleX=.15+moduleCol*.5;const localX=x-moduleX;const pointX=moduleX+Math.max(.06,Math.min(.44,localX));const moduleY=.225+Math.floor((y-.225)/.3)*.3;const pointY=moduleY+.150;
 conduit([x,y,-.035],[pointX,y,-.035]);conduit([pointX,y,-.035],[pointX,pointY,-.035]);g.position.set(pointX,pointY,0);
 }else g.position.set(x,y,0);
 g.userData.label=name;electrical.add(g);
@@ -77,10 +77,10 @@ if(!junction){
 }
 
 }
-const riserX=9.5,zConduit=-.035;
+const riserX=9.775,zConduit=-.035;
 conduit([9.8,4.5,zConduit],[riserX,4.5,zConduit]);
-let previousY=4.5;
-for(let r=3;r>=0;r--){const y=lampHeights[r];conduit([riserX,previousY,zConduit],[riserX,y,zConduit]);previousY=y;electricalBox(riserX,y,`Derivação · faixa ${r+1}`,true);
+const electricHeights=[.675,1.875,2.775,3.975];let previousY=4.5;
+for(let r=3;r>=0;r--){const y=electricHeights[r];conduit([riserX,previousY,zConduit],[riserX,y,zConduit]);previousY=y;electricalBox(riserX,y,`Derivação · faixa ${r+1}`,true);
 const first=(r%2?1:.5)*(9.8/7)+.09;conduit([riserX,y,zConduit],[first,y,zConduit]);
 for(let c=0;c<lampCounts[r];c++){const x=(c+(r%2?1:.5))*(9.8/7),bx=(Math.abs(x+.09-4.9)<.18?5.14:x+.09),id=lampCounts.slice(0,r).reduce((n,v)=>n+v,0)+c+1;electricalBox(bx,y,`Caixa embutida · L${String(id).padStart(2,'0')}`);
 // Short lamp supply lead, distinct from the conduit measurement.
@@ -93,7 +93,7 @@ const plumbing=new THREE.Group();plumbing.name='Água · uso e irrigação';asse
 const waterPipeMat=new THREE.MeshStandardMaterial({color:0x1977ba,roughness:.6});const brassMat=new THREE.MeshStandardMaterial({color:0xb99b54,roughness:.45,metalness:.65});
 function waterPipe(a,b,r=.0125){return rod(plumbing,a,b,r,waterPipeMat);}
 const pz=-.035;
-waterPipe([9.8,4.35,pz],[9.68,4.35,pz]);waterPipe([9.68,4.35,pz],[9.68,.40,pz]);waterPipe([9.68,.40,pz],[8.30,.40,pz]);
+waterPipe([9.8,4.35,pz],[9.715,4.35,pz]);waterPipe([9.715,4.35,pz],[9.715,.40,pz]);waterPipe([9.715,.40,pz],[8.30,.40,pz]);
 const tapMat=new THREE.MeshStandardMaterial({color:0x111614,roughness:.48,metalness:.55});
 for(const [x,name] of [[8.30,'Torneira preta · uso'],[8.55,'Torneira preta · irrigação do jardim']]){
  waterPipe([x,.40,pz],[x,.55,pz]);

@@ -15,10 +15,10 @@ const bricks=group('bricks'),mortar=group('mortar'),scratch=group('scratch'),ren
 // Finished wall envelope stays 200 mm: front face z=0 and back face z=-0.200.
 // Running bond, nominal masonry 140 mm, joints 10 mm; finish thicknesses are study assumptions.
 // Open masonry chases for the concealed electrical system, capped by the finish layers.
-const cuts=[],heights=[.75,1.85,2.85,3.95],counts=[7,6,7,6];
+const cuts=[],heights=[.675,1.875,2.775,3.975],counts=[7,6,7,6];
 function cut(x0,x1,y0,y1){cuts.push([x0,x1,y0,y1,-.053,.003]);}
-cut(9.482,9.518,.75,4.518);cut(9.482,9.8,4.482,4.518);
-for(let r=0;r<4;r++){const y=heights[r],first=(r%2?1:.5)*1.4+.09;cut(first,9.5,y-.018,y+.018);cut(9.457,9.543,y-.053,y+.053);for(let c=0;c<counts[r];c++){const x=(c+(r%2?1:.5))*1.4+.09;cut(x-.028,x+.028,y-.053,y+.053);}}
+cut(9.757,9.793,.675,4.518);cut(9.757,9.8,4.482,4.518);
+for(let r=0;r<4;r++){const y=heights[r],first=(r%2?1:.5)*1.4+.09;cut(first,9.775,y-.018,y+.018);cut(9.747,9.8,y-.053,y+.053);for(let c=0;c<counts[r];c++){const x=(c+(r%2?1:.5))*1.4+.09;cut(x-.028,x+.028,y-.053,y+.053);}}
 function subtract(a,b){const lo=[Math.max(a[0],b[0]),Math.max(a[2],b[2]),Math.max(a[4],b[4])],hi=[Math.min(a[1],b[1]),Math.min(a[3],b[3]),Math.min(a[5],b[5])];if(lo.some((v,i)=>v>=hi[i]))return [a];const out=[],mid=a.slice();for(let k=0;k<3;k++){const j=k*2;if(mid[j]<lo[k]){const t=mid.slice();t[j+1]=lo[k];out.push(t);mid[j]=lo[k];}if(mid[j+1]>hi[k]){const t=mid.slice();t[j]=hi[k];out.push(t);mid[j+1]=hi[k];}}return out;}
 // Exclude the new concrete structure from masonry; no electrical chases are cut in concrete.
 cuts.push([4.75,5.05,0,3.2,-.202,-.060],[0,9.8,3.2,3.7,-.202,-.060]);
