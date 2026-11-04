@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {createVegetation} from './vegetation.js?v=20';
 import {createArchitecture} from './architecture.js?v=15';
 import {OrbitControls} from './vendor/three/examples/jsm/controls/OrbitControls.js';
 const canvas=document.querySelector('canvas');
@@ -36,6 +37,7 @@ rod(g,[0,-.0205,.492],[0,-.0205,.5],.0253,black);rod(g,[0,-.0205,.490],[0,-.0205
 return g;}
 const assembly=new THREE.Group();scene.add(assembly);const wall=new THREE.Group(),modules=new THREE.Group(),lamps=new THREE.Group();assembly.add(wall,modules,lamps);const architecture=createArchitecture(wall);
 const proto=moduleModel();for(let row=0;row<14;row++)for(let col=0;col<19;col++){if(row===1&&col===16)continue;const m=proto.clone();m.position.set(.15+col*.5,.225+row*.3,.0005);m.userData.label=`M${String(row*19+col+1).padStart(3,'0')} · coluna ${col+1}, fileira ${row+1}`;modules.add(m);}
+const vegetation=createVegetation(assembly);document.getElementById('vegetation').onchange=e=>{vegetation.visible=e.target.checked;render();};
 const lampProto=lampModel();
 // Base rear surface touches the internal rear face at z=4 mm.
 // Only mounting screw shanks penetrate the module rear and enter the wall.
