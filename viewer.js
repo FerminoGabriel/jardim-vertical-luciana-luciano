@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {createVegetation} from './vegetation.js?v=21';
-import {createArchitecture} from './architecture.js?v=22';
+import {createArchitecture} from './architecture.js?v=23';
 import {OrbitControls} from './vendor/three/examples/jsm/controls/OrbitControls.js';
 const canvas=document.querySelector('canvas');
 try{
@@ -47,7 +47,7 @@ const lampProto=lampModel();
 const projectedLights=[];
 function addEmission(lamp){const spot=new THREE.SpotLight(0xffc58a,0,1.8,Math.PI/3,.65,2);spot.position.set(0,-.0205,.485);const target=new THREE.Object3D();target.position.set(0,-.17,-.3);lamp.add(target,spot);spot.target=target;spot.visible=false;projectedLights.push(spot);}
 // Alternate 7/6/7/6 bands. Even bands are centred in the gaps of the odd bands.
-const lampHeights=[.750,1.850,2.850,3.950];
+const lampHeights=[.750,1.550,2.550,3.650];
 const lampCounts=[7,6,7,6];let lampNumber=0;
 for(let r=0;r<4;r++)for(let c=0;c<lampCounts[r];c++){const lamp=lampProto.clone();const x=(c+(r%2?1:.5))*(9.8/7);lamp.position.set(x,lampHeights[r],.004);
 for(const dx of [-.015,.015])rod(lamp,[dx,0,-.035],[dx,0,.014],.0018,black);
@@ -79,7 +79,7 @@ if(!junction){
 }
 const riserX=9.775,zConduit=-.035;
 conduit([9.8,4.5,zConduit],[riserX,4.5,zConduit]);
-const electricHeights=[.675,1.875,2.775,3.975];let previousY=4.5;
+const electricHeights=[.675,1.575,2.475,3.675];let previousY=4.5;
 for(let r=3;r>=0;r--){const y=electricHeights[r];conduit([riserX,previousY,zConduit],[riserX,y,zConduit]);previousY=y;electricalBox(riserX,y,`Derivação · faixa ${r+1}`,true);
 const first=(r%2?1:.5)*(9.8/7)+.09;conduit([riserX,y,zConduit],[first,y,zConduit]);
 for(let c=0;c<lampCounts[r];c++){const x=(c+(r%2?1:.5))*(9.8/7),bx=(Math.abs(x+.09-4.9)<.18?5.14:x+.09),id=lampCounts.slice(0,r).reduce((n,v)=>n+v,0)+c+1;electricalBox(bx,y,`Caixa embutida · L${String(id).padStart(2,'0')}`);
