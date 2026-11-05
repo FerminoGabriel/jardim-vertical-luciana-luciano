@@ -100,7 +100,6 @@ for(const [row,y] of lampHeights.entries()){
   electricalBox(boxX,y,'Caixa embutida · L'+id);
  }
 }
-const electricalToggle=document.getElementById('electrical');electricalToggle.onchange=e=>{electrical.visible=e.target.checked;render();};
 document.getElementById('electricalSummary').textContent=`22 caixas de luminárias + 2 derivações · aproximadamente ${conduitLength.toFixed(1).replace('.',',')} m de percurso`;
 // Water supply concept: independent right-hand riser, two separately valved outlets.
 const plumbing=new THREE.Group();plumbing.name='Água · uso e irrigação';assembly.add(plumbing);
@@ -128,7 +127,11 @@ for(const [x,name] of [[8.30,'Torneira preta · uso'],[8.55,'Torneira preta · i
  mesh(new THREE.SphereGeometry(.008,12,8),tapMat,tap,[x,.607,.272]);
  const opening=mesh(new THREE.CircleGeometry(.010,24),recess,tap,[x,.4655,.327]);opening.rotation.x=Math.PI/2;
 }
-document.getElementById('plumbing').onchange=e=>{plumbing.visible=e.target.checked;render();};
+document.getElementById('installations').onchange=({target})=>{
+ electrical.visible=target.checked;
+ plumbing.visible=target.checked;
+ render();
+};
 const display=new THREE.Group();scene.add(display);display.visible=false;let mode='geral',span=7.8;
 let renderPending=false,lastWidth=0,lastHeight=0;function render(){if(renderPending)return;renderPending=true;requestAnimationFrame(()=>{renderPending=false;drawFrame();});}
 function drawFrame(){const w=canvas.clientWidth,h=canvas.clientHeight;if(w!==lastWidth||h!==lastHeight){renderer.setSize(w,h,false);lastWidth=w;lastHeight=h;}const aspect=w/h;const s=mode==='modulo'||mode==='luminaria'?Math.max(span,span/aspect):Math.max(span,12/aspect);camera.left=-s*aspect/2;camera.right=s*aspect/2;camera.top=s/2;camera.bottom=-s/2;camera.updateProjectionMatrix();renderer.render(scene,camera);}
@@ -142,7 +145,7 @@ else if(v==='lado'){span=6;pose([16,2.325,.15],[4.9,2.325,.15]);}
 else if(v==='topo'){camera.up.set(0,0,-1);pose([4.9,16,.15],[4.9,2.325,.15]);}
 else pose([10.7,6.5,14],[4.9,2.1,.5]);render();}
 for(const b of document.querySelectorAll('[data-view]'))b.onclick=()=>view(b.dataset.view);
-for(const [id,g] of Object.entries({wall,modules,lamps}))document.getElementById(id).onchange=e=>{g.visible=e.target.checked;render();};for(const [id,g] of Object.entries(architecture)){const el=document.getElementById(id);if(el)el.onchange=e=>{g.visible=e.target.checked;render();};}document.getElementById('glow').onchange=e=>{const on=e.target.checked;diffuser.emissiveIntensity=on?7:0;projectedLights.forEach(l=>{l.visible=on&&!mobileMode;l.intensity=on?4:0;});ambient.intensity=on?.65:2.5;sun.intensity=on?1:3;fill.intensity=on?.35:1.5;if(on){lamps.visible=true;document.getElementById('lamps').checked=true;}render();};for(const [id,keys] of Object.entries({finishLayer:['paint','skim'],renderLayer:['waterproof','render','scratch'],masonryLayer:['bricks','mortar','back','structure']})){document.getElementById(id).onchange=e=>{keys.forEach(k=>architecture[k].visible=e.target.checked);render();};}document.getElementById('environment').onchange=e=>{for(const id of ['floor','left','stone','right','door','drain'])architecture[id].visible=e.target.checked;render();};document.getElementById('fit').onclick=()=>view(mode);controls.addEventListener('change',render);window.addEventListener('resize',render);
+for(const [id,g] of Object.entries({wall,modules,lamps}))document.getElementById(id).onchange=e=>{g.visible=e.target.checked;render();};for(const [id,g] of Object.entries(architecture)){const el=document.getElementById(id);if(el)el.onchange=e=>{g.visible=e.target.checked;render();};}document.getElementById('glow').onchange=e=>{const on=e.target.checked;diffuser.emissiveIntensity=on?7:0;projectedLights.forEach(l=>{l.visible=on&&!mobileMode;l.intensity=on?4:0;});ambient.intensity=on?.65:2.5;sun.intensity=on?1:3;fill.intensity=on?.35:1.5;if(on){lamps.visible=true;document.getElementById('lamps').checked=true;}render();};for(const [id,keys] of Object.entries({finishLayer:['paint','skim','waterproof','render','scratch'],masonryLayer:['bricks','mortar','back','structure']})){document.getElementById(id).onchange=e=>{keys.forEach(k=>architecture[k].visible=e.target.checked);render();};}document.getElementById('fit').onclick=()=>view(mode);controls.addEventListener('change',render);window.addEventListener('resize',render);
 const ray=new THREE.Raycaster(),pointer=new THREE.Vector2();let start;canvas.addEventListener('pointerdown',e=>start=[e.clientX,e.clientY]);canvas.addEventListener('pointerup',e=>{if(!start||Math.hypot(e.clientX-start[0],e.clientY-start[1])>4||!assembly.visible)return;const r=canvas.getBoundingClientRect();pointer.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);ray.setFromCamera(pointer,camera);const hits=ray.intersectObjects([...(plumbing.visible?plumbing.children:[]),...(electrical.visible?electrical.children:[]),...(modules.visible?modules.children:[]),...(lamps.visible?lamps.children:[])],true);if(hits.length){let o=hits[0].object;while(o&&!o.userData.label)o=o.parent;if(o)document.querySelector('#viewLabel').textContent=o.userData.label;}});
 if(mobileMode){document.querySelector('.badge span').textContent='MODO LEVE';document.querySelector('label:has(#glow)').lastChild.textContent=' Acender difusores · modo leve';}
 view('geral');
