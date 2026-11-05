@@ -33,7 +33,9 @@ box(scratch,9.8,4.65,.005,4.9,2.325,-.0585,mat(0xa7a18f,cement,.0025));
 box(render,9.8,4.65,.050,4.9,2.325,-.031,renderMat);
 box(waterproof,9.8,4.65,.002,4.9,2.325,-.005,waterMat);
 box(skim,9.8,4.65,.003,4.9,2.325,-.0025,skimMat);
-box(paint,9.8,4.65,.001,4.9,2.325,-.0005,paintMat);
+const paintRelief=lightweight?null:paintMicrotexture();
+const gardenFace=box(paint,9.8,4.65,.001,4.9,2.325,-.0005,paintMat);
+if(paintRelief)applyTexturedPaint(gardenFace,paintRelief,0x292927,.0014);
 box(back,9.8,4.65,.03,4.9,2.325,-.216,rearMat);
 // Monolithic floor group, with 1200 mm setting-out and a visible 2 mm grout joint.
 box(floor,9.8,.08,1.5,4.9,-.0492,.75,mat(0xb5b1a5,null,.001));
@@ -51,7 +53,8 @@ for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const ps=[grid[r][c],grid[r][c+1]
  addDetailedMoledo(stone,1.5,4.65);
 }
 // Right return has a clear opening across its 1500 mm length, with a 2500 mm-high door.
-box(right,.2,2.15,1.5,9.9,3.575,.75,rearMat);
+const rightFace=box(right,.2,2.15,1.5,9.9,3.575,.75,rearMat);
+if(paintRelief)applyTexturedPaint(rightFace,paintRelief,0xf5f2ea,.0009);
 const alu=new THREE.MeshStandardMaterial({color:0x222522,roughness:.38,metalness:.75});const glass=new THREE.MeshPhysicalMaterial({color:0xbdd4ce,roughness:.08,metalness:0,transparent:true,opacity:.19,depthWrite:false,side:THREE.DoubleSide});
 const doorLocal=new THREE.Group();doorLocal.rotation.y=Math.PI/2;doorLocal.position.set(9.85,0,1.5);door.add(doorLocal);
 function frame(parent,x0,y0,w,h,z){box(parent,w,.035,.038,x0+w/2,y0+.0175,z,alu);box(parent,w,.035,.038,x0+w/2,y0+h-.0175,z,alu);box(parent,.035,h,.038,x0+.0175,y0+h/2,z,alu);box(parent,.035,h,.038,x0+w-.0175,y0+h/2,z,alu);box(parent,w-.07,h-.07,.006,x0+w/2,y0+h/2,z,glass);}
@@ -239,4 +242,46 @@ function mineralMaps(){
  const colorMap=texture(color);
  colorMap.colorSpace=THREE.SRGBColorSpace;
  return {colorMap,surfaceMap:texture(surface)};
+}
+
+
+function paintMicrotexture(){
+ const size=256,data=new Uint8Array(size*size*4);
+ let seed=6157;
+ const tau=2*Math.PI;
+ for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+  const u=x/size*tau,v=y/size*tau;
+  seed=(Math.imul(seed,1664525)+1013904223)>>>0;
+  const grain=seed/4294967296-.5;
+  const stipple=Math.sin(29*u+Math.sin(13*v))*Math.sin(23*v+Math.sin(17*u));
+  const plaster=Math.sin(5*u+3*v)*Math.sin(4*v-2*u);
+  const index=(y*size+x)*4;
+  data[index]=Math.round(128+27*stipple+10*plaster+32*grain);
+  data[index+1]=Math.round(229+14*stipple+6*plaster);
+  data[index+2]=255;
+  data[index+3]=255;
+ }
+ const texture=new THREE.DataTexture(data,size,size);
+ texture.wrapS=texture.wrapT=THREE.RepeatWrapping;
+ texture.magFilter=THREE.LinearFilter;
+ texture.minFilter=THREE.LinearMipmapLinearFilter;
+ texture.generateMipmaps=true;
+ texture.anisotropy=8;
+ texture.needsUpdate=true;
+ return texture;
+}
+
+function applyTexturedPaint(mesh,texture,color,bumpScale){
+ const uv=mesh.geometry.attributes.uv;
+ const {width,height,depth}=mesh.geometry.parameters;
+ const tileSize=.42;
+ // Keep the grain the same size on the broad faces and on the painted returns.
+ const dimensions=[[depth,height],[depth,height],[width,depth],[width,depth],[width,height],[width,height]];
+ dimensions.forEach(([u,v],face)=>{
+  for(let i=face*4;i<face*4+4;i++)uv.setXY(i,uv.getX(i)*u/tileSize,uv.getY(i)*v/tileSize);
+ });
+ uv.needsUpdate=true;
+ mesh.material=new THREE.MeshStandardMaterial({
+  color,bumpMap:texture,bumpScale,roughnessMap:texture,roughness:1
+ });
 }

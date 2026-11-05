@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {createVegetation} from './vegetation.js?v=29';
-import {createArchitecture} from './architecture.js?v=30';
+import {createArchitecture} from './architecture.js?v=31';
 import {OrbitControls} from './vendor/three/examples/jsm/controls/OrbitControls.js';
 const canvas=document.querySelector('canvas');
 try{
