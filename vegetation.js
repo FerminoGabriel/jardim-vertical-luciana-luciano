@@ -58,6 +58,22 @@ function createDesktopGarden(parent){
    roughness:i===1?.49:.68,sheen:.24,sheenColor:new THREE.Color(0x75814c),
    clearcoat:i===0||i===1?.22:.07,clearcoatRoughness:.52
   });
+  const translucency=[.28,.20,.18,.40,.36,.30][i];
+  material.onBeforeCompile=shader=>{
+   shader.uniforms.leafTranslucency={value:translucency};
+   const physical=THREE.ShaderChunk.lights_physical_pars_fragment;
+   const direct='reflectedLight.directDiffuse += irradiance * BRDF_Lambert( material.diffuseColor );';
+   const transmitted=`
+    float leafBacklight = pow(saturate(dot(-geometryNormal,directLight.direction)),1.35);
+    vec3 leafFilter = vec3(1.0,1.19,0.55) * sqrt(material.diffuseColor);
+    reflectedLight.directDiffuse += leafTranslucency * leafBacklight
+      * directLight.color * BRDF_Lambert(leafFilter);
+   `;
+   shader.fragmentShader=shader.fragmentShader.replace(
+    '#include <lights_physical_pars_fragment>',
+    'uniform float leafTranslucency;\n'+physical.replace(direct,direct+transmitted)
+   );
+  };
   return {geometry,material,matrices:[],colors:[]};
  });
  const matrix=new THREE.Matrix4(),rotation=new THREE.Quaternion();
