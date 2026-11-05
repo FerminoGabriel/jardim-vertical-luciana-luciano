@@ -1,13 +1,71 @@
 import * as THREE from 'three';
-import {createVegetation} from './vegetation.js?v=28';
+import {createVegetation} from './vegetation.js?v=29';
 import {createArchitecture} from './architecture.js?v=24';
 import {OrbitControls} from './vendor/three/examples/jsm/controls/OrbitControls.js';
 const canvas=document.querySelector('canvas');
 try{
-const mobileMode=matchMedia('(pointer:coarse)').matches||innerWidth<800;const renderer=new THREE.WebGLRenderer({canvas,antialias:!mobileMode,powerPreference:'low-power'});renderer.setPixelRatio(mobileMode?.85:Math.min(devicePixelRatio,1.5));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.35;
+const mobileMode=matchMedia('(pointer:coarse)').matches||innerWidth<800;const renderer=new THREE.WebGLRenderer({canvas,antialias:!mobileMode,powerPreference:mobileMode?'low-power':'high-performance'});renderer.setPixelRatio(mobileMode?.85:Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.35;
 const scene=new THREE.Scene();scene.background=new THREE.Color('#e9eae2');
 const camera=new THREE.OrthographicCamera(-6,6,4,-4,.001,150);const controls=new OrbitControls(camera,canvas);controls.enableDamping=false;controls.screenSpacePanning=true;controls.minZoom=.25;controls.maxZoom=25;
 const ambient=new THREE.HemisphereLight(0xffffff,0x79806b,2.5);scene.add(ambient);const sun=new THREE.DirectionalLight(0xfff6e3,3);sun.position.set(-4,8,6);scene.add(sun);const fill=new THREE.DirectionalLight(0xe4f2ff,1.5);fill.position.set(6,4,-2);scene.add(fill);
+// A procedural linear HDR sky supplies broad reflections without a network asset.
+function makeDesktopEnvironment(){
+ const width=256,height=128,data=new Uint16Array(width*height*4);
+ const softbox=new THREE.Vector3(-.55,.63,.55).normalize();
+ const direction=new THREE.Vector3();
+ for(let y=0;y<height;y++){
+  const latitude=((y+.5)/height-.5)*Math.PI;
+  const elevation=Math.sin(latitude), horizontal=Math.cos(latitude);
+  for(let x=0;x<width;x++){
+   const longitude=((x+.5)/width-.5)*2*Math.PI;
+   direction.set(Math.cos(longitude)*horizontal,elevation,Math.sin(longitude)*horizontal);
+   const skylight=.16+.48*Math.max(0,elevation);
+   const broadLight=2.8*Math.pow(Math.max(0,direction.dot(softbox)),18);
+   const offset=(y*width+x)*4;
+   data[offset]=THREE.DataUtils.toHalfFloat(skylight*.84+broadLight);
+   data[offset+1]=THREE.DataUtils.toHalfFloat(skylight*.94+broadLight*.93);
+   data[offset+2]=THREE.DataUtils.toHalfFloat(skylight*1.13+broadLight*.80);
+   data[offset+3]=THREE.DataUtils.toHalfFloat(1);
+  }
+ }
+ const environment=new THREE.DataTexture(data,width,height,THREE.RGBAFormat,THREE.HalfFloatType);
+ environment.mapping=THREE.EquirectangularReflectionMapping;
+ environment.minFilter=environment.magFilter=THREE.LinearFilter;
+ environment.needsUpdate=true;
+ return environment;
+}
+
+const gl=renderer.getContext();
+const fixtureShadows=!mobileMode&&renderer.capabilities.maxTextures>=32
+ &&gl.getParameter(gl.MAX_VARYING_VECTORS)>=30;
+const desktopLampIntensity=16;
+let shadowState='';
+function applyDesktopLight(on){
+ renderer.toneMappingExposure=on?1.28:1.08;
+ scene.environmentIntensity=on?.11:.58;
+ scene.background.set(on?'#2b302f':'#e9eae2');
+ ambient.intensity=on?.24:.62;
+ sun.intensity=on?.16:2.65;
+ fill.intensity=on?.18:.55;
+ sun.castShadow=!on||!fixtureShadows;
+}
+if(!mobileMode){
+ renderer.shadowMap.enabled=true;
+ renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+ renderer.shadowMap.autoUpdate=false;
+ scene.environment=makeDesktopEnvironment();
+ ambient.groundColor.set(0xc2b3a0);
+ sun.target.position.set(4.9,2.3,.2);
+ sun.position.set(.4,7.8,4.7);
+ scene.add(sun.target);
+ Object.assign(sun.shadow.camera,{left:-6.7,right:6.7,top:4.8,bottom:-4.8,near:.1,far:22});
+ sun.shadow.camera.updateProjectionMatrix();
+ const shadowSize=Math.min(4096,renderer.capabilities.maxTextureSize);
+ sun.shadow.mapSize.set(shadowSize,shadowSize);
+ sun.shadow.normalBias=.005;
+ sun.shadow.bias=-.00015;
+ applyDesktopLight(false);
+}
 const plastic=new THREE.MeshStandardMaterial({color:0x222725,roughness:.72,metalness:.03,side:THREE.DoubleSide});const rimMat=new THREE.MeshStandardMaterial({color:0x303633,roughness:.65});const black=new THREE.MeshStandardMaterial({color:0x171b19,roughness:.48,metalness:.42});const recess=new THREE.MeshStandardMaterial({color:0x080b09,roughness:.9});const diffuser=new THREE.MeshStandardMaterial({color:0xf4e3be,roughness:.5,emissive:0xffc777,emissiveIntensity:0});const wallMat=new THREE.MeshStandardMaterial({color:0xe5dfcf,roughness:.96});
 function mesh(g,m,parent,pos){const o=new THREE.Mesh(g,m);if(pos)o.position.set(...pos);parent.add(o);return o;}
 function box(parent,w,h,d,x,y,z,mat=plastic){return mesh(new THREE.BoxGeometry(w,h,d),mat,parent,[x,y,z]);}
@@ -48,10 +106,17 @@ const lampProto=lampModel();
 const projectedLights=[];
 function addEmission(lamp){
  const direction=new THREE.Vector3(0,1.36,-.27).normalize();
- const spot=new THREE.SpotLight(0xffc990,0,4,Math.PI/12,.45,2);
+ const spot=new THREE.SpotLight(mobileMode?0xffc990:0xffb870,0,4,Math.PI/12,mobileMode?.45:.72,2);
  spot.position.set(0,0,.57);spot.position.addScaledVector(direction,.029);
  const target=new THREE.Object3D();target.position.set(0,1.36,.30);
  lamp.add(target,spot);spot.target=target;spot.visible=false;projectedLights.push(spot);
+ if(fixtureShadows){
+  spot.castShadow=true;
+  spot.shadow.mapSize.set(256,256);
+  spot.shadow.camera.near=.04;
+  spot.shadow.bias=-.00025;
+  spot.shadow.normalBias=.003;
+ }
 }
 const lampHeights=[.14,4.54];
 const lampXs=Array.from({length:11},(_,column)=>.40+column*.90);
@@ -132,20 +197,45 @@ document.getElementById('installations').onchange=({target})=>{
  plumbing.visible=target.checked;
  render();
 };
+function enableSurfaceShadows(group){
+ group.traverse(object=>{
+  if(!object.isMesh||object.material.transparent)return;
+  object.castShadow=true;
+  object.receiveShadow=true;
+ });
+}
+if(!mobileMode){
+ enableSurfaceShadows(wall);
+ enableSurfaceShadows(modules);
+ enableSurfaceShadows(vegetation);
+ enableSurfaceShadows(plumbing);
+}
 const display=new THREE.Group();scene.add(display);display.visible=false;let mode='geral',span=7.8;
 let renderPending=false,lastWidth=0,lastHeight=0;function render(){if(renderPending)return;renderPending=true;requestAnimationFrame(()=>{renderPending=false;drawFrame();});}
-function drawFrame(){const w=canvas.clientWidth,h=canvas.clientHeight;if(w!==lastWidth||h!==lastHeight){renderer.setSize(w,h,false);lastWidth=w;lastHeight=h;}const aspect=w/h;const s=mode==='modulo'||mode==='luminaria'?Math.max(span,span/aspect):Math.max(span,12/aspect);camera.left=-s*aspect/2;camera.right=s*aspect/2;camera.top=s/2;camera.bottom=-s/2;camera.updateProjectionMatrix();renderer.render(scene,camera);}
+function drawFrame(){const w=canvas.clientWidth,h=canvas.clientHeight;if(w!==lastWidth||h!==lastHeight){renderer.setSize(w,h,false);lastWidth=w;lastHeight=h;}const aspect=w/h;const s=mode==='modulo'||mode==='luminaria'?Math.max(span,span/aspect):Math.max(span,12/aspect);camera.left=-s*aspect/2;camera.right=s*aspect/2;camera.top=s/2;camera.bottom=-s/2;camera.updateProjectionMatrix();
+ if(!mobileMode){
+  const state=[mode,...Array.from(document.querySelectorAll('aside input'),input=>input.checked)].join('|');
+  if(state!==shadowState){
+   renderer.shadowMap.needsUpdate=true;
+   shadowState=state;
+  }
+ }
+ renderer.render(scene,camera);}
 function pose(eye,target){camera.zoom=1;camera.position.set(...eye);controls.target.set(...target);controls.update();render();}
 const titles={geral:'Perspectiva geral',frente:'Elevação frontal · 19 × 14',lado:'Perfil · parede de 200 mm',topo:'Vista superior',modulo:'Plastwall 12 L · inspeção 3D',luminaria:'GreenUP Light-up · inspeção 3D'};
-function view(v){mode=v;document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===v));document.querySelector('#viewLabel').textContent=titles[v];assembly.visible=!['modulo','luminaria'].includes(v);display.clear();display.visible=!assembly.visible;camera.up.set(0,1,0);span=7.8;
+function view(v){mode=v;document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===v));document.querySelector('#viewLabel').textContent=titles[v];assembly.visible=!['modulo','luminaria'].includes(v);if(!mobileMode&&display.children.length&&display.children[0].name===lampProto.name){
+ const detailSpot=projectedLights.pop();
+ detailSpot.shadow.dispose();
+}
+display.clear();display.visible=!assembly.visible;camera.up.set(0,1,0);span=7.8;
 if(v==='modulo'){display.add(proto.clone());span=.62;pose([.85,.53,.85],[.25,.15,.09]);}
-else if(v==='luminaria'){const detail=lampProto.clone();addEmission(detail);projectedLights.at(-1).intensity=document.getElementById('glow').checked?4:0;projectedLights.at(-1).visible=document.getElementById('glow').checked&&!mobileMode;display.add(detail);span=.65;pose([.65,.37,.78],[0,-.01,.25]);}
+else if(v==='luminaria'){const detail=lampProto.clone();addEmission(detail);projectedLights.at(-1).intensity=document.getElementById('glow').checked?(mobileMode?4:desktopLampIntensity):0;projectedLights.at(-1).visible=document.getElementById('glow').checked&&!mobileMode;display.add(detail);span=.65;pose([.65,.37,.78],[0,-.01,.25]);}
 else if(v==='frente')pose([4.9,2.325,15],[4.9,2.325,0]);
 else if(v==='lado'){span=6;pose([16,2.325,.15],[4.9,2.325,.15]);}
 else if(v==='topo'){camera.up.set(0,0,-1);pose([4.9,16,.15],[4.9,2.325,.15]);}
 else pose([10.7,6.5,14],[4.9,2.1,.5]);render();}
 for(const b of document.querySelectorAll('[data-view]'))b.onclick=()=>view(b.dataset.view);
-for(const [id,g] of Object.entries({modules,lamps}))document.getElementById(id).onchange=e=>{g.visible=e.target.checked;render();};for(const [id,g] of Object.entries(architecture)){const el=document.getElementById(id);if(el)el.onchange=e=>{g.visible=e.target.checked;render();};}document.getElementById('glow').onchange=e=>{const on=e.target.checked;diffuser.emissiveIntensity=on?7:0;projectedLights.forEach(l=>{l.visible=on&&!mobileMode;l.intensity=on?4:0;});ambient.intensity=on?.65:2.5;sun.intensity=on?1:3;fill.intensity=on?.35:1.5;if(on){lamps.visible=true;document.getElementById('lamps').checked=true;}render();};for(const [id,keys] of Object.entries({finishLayer:['paint','skim','waterproof','render','scratch'],wall:['bricks','mortar','back','structure','floor','left','stone','right','door','drain']})){document.getElementById(id).onchange=e=>{keys.forEach(k=>architecture[k].visible=e.target.checked);render();};}document.getElementById('fit').onclick=()=>view(mode);controls.addEventListener('change',render);window.addEventListener('resize',render);
+for(const [id,g] of Object.entries({modules,lamps}))document.getElementById(id).onchange=e=>{g.visible=e.target.checked;render();};for(const [id,g] of Object.entries(architecture)){const el=document.getElementById(id);if(el)el.onchange=e=>{g.visible=e.target.checked;render();};}document.getElementById('glow').onchange=e=>{const on=e.target.checked;diffuser.emissiveIntensity=on?7:0;projectedLights.forEach(l=>{l.visible=on&&!mobileMode;l.intensity=on?(mobileMode?4:desktopLampIntensity):0;});if(mobileMode){ambient.intensity=on?.65:2.5;sun.intensity=on?1:3;fill.intensity=on?.35:1.5;}else applyDesktopLight(on);if(on){lamps.visible=true;document.getElementById('lamps').checked=true;}render();};for(const [id,keys] of Object.entries({finishLayer:['paint','skim','waterproof','render','scratch'],wall:['bricks','mortar','back','structure','floor','left','stone','right','door','drain']})){document.getElementById(id).onchange=e=>{keys.forEach(k=>architecture[k].visible=e.target.checked);render();};}document.getElementById('fit').onclick=()=>view(mode);controls.addEventListener('change',render);window.addEventListener('resize',render);
 const ray=new THREE.Raycaster(),pointer=new THREE.Vector2();let start;canvas.addEventListener('pointerdown',e=>start=[e.clientX,e.clientY]);canvas.addEventListener('pointerup',e=>{if(!start||Math.hypot(e.clientX-start[0],e.clientY-start[1])>4||!assembly.visible)return;const r=canvas.getBoundingClientRect();pointer.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);ray.setFromCamera(pointer,camera);const hits=ray.intersectObjects([...(plumbing.visible?plumbing.children:[]),...(electrical.visible?electrical.children:[]),...(modules.visible?modules.children:[]),...(lamps.visible?lamps.children:[])],true);if(hits.length){let o=hits[0].object;while(o&&!o.userData.label)o=o.parent;if(o)document.querySelector('#viewLabel').textContent=o.userData.label;}});
 if(mobileMode){document.querySelector('.badge span').textContent='MODO LEVE';document.querySelector('label:has(#glow)').lastChild.textContent=' Acender difusores · modo leve';}
 view('geral');

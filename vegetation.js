@@ -8,7 +8,13 @@ function leafGeometry(narrow=false){const pos=[],uv=[],index=[],steps=lightweigh
 function leafTexture(variegated=false){const c=document.createElement('canvas');c.width=c.height=128;const ctx=c.getContext('2d');const grad=ctx.createLinearGradient(0,0,128,0);grad.addColorStop(0,'#9aa88c');grad.addColorStop(.48,'#f0f1d4');grad.addColorStop(1,'#a6b29b');ctx.fillStyle=grad;ctx.fillRect(0,0,128,128);if(variegated){ctx.fillStyle='#f3e8b9';for(let i=0;i<13;i++){ctx.beginPath();ctx.ellipse(random()*128,random()*128,6+random()*12,9+random()*16,random()*3,0,Math.PI*2);ctx.fill();}}
 ctx.strokeStyle='rgba(222,235,176,.55)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(64,0);ctx.lineTo(64,128);for(let y=14;y<122;y+=15){ctx.moveTo(64,y);ctx.lineTo(8,y+22);ctx.moveTo(64,y);ctx.lineTo(120,y+22);}ctx.stroke();const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;}
 const broad=leafGeometry(),narrow=leafGeometry(true),texture=leafTexture(),variegated=leafTexture(true);
-const buckets=palette.map((color,i)=>({geometry:i===3||i===5?narrow:broad,material:new THREE.MeshLambertMaterial({color,map:i===3?variegated:texture,side:THREE.DoubleSide}),matrices:[],colors:[]}));
+const buckets=palette.map((color,i)=>({geometry:i===3||i===5?narrow:broad,material:lightweight
+ ?new THREE.MeshLambertMaterial({color,map:i===3?variegated:texture,side:THREE.DoubleSide})
+ :new THREE.MeshPhysicalMaterial({
+  color,map:i===3?variegated:texture,side:THREE.DoubleSide,
+  roughness:i===5?.83:.65,sheen:.38,sheenColor:new THREE.Color(color),
+  clearcoat:i===5?.04:.12,clearcoatRoughness:.48
+ }),matrices:[],colors:[]}));
 const matrix=new THREE.Matrix4(),q=new THREE.Quaternion(),scale=new THREE.Vector3(),position=new THREE.Vector3(),up=new THREE.Vector3(0,1,0);
 function clearServices(x,y){return x>8.10&&x<8.76&&y>.23&&y<.91;}
 function leaf(kind,x,y,z,length,angle,tilt=0){if(x<.14||x>9.66||y<.22||y>4.46||clearServices(x,y))return;position.set(x,y,z);q.setFromEuler(new THREE.Euler(tilt,(random()-.5)*1.0,angle));const sizeBoost=lightweight?1.3:1;scale.set(length*sizeBoost,length*sizeBoost,length*sizeBoost);matrix.compose(position,q,scale);buckets[kind].matrices.push(matrix.clone());const v=.82+random()*.28;buckets[kind].colors.push(new THREE.Color(v,v*(.96+random()*.08),v));}
