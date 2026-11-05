@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {createVegetation} from './vegetation.js?v=21';
-import {createArchitecture} from './architecture.js?v=23';
+import {createArchitecture} from './architecture.js?v=24';
 import {OrbitControls} from './vendor/three/examples/jsm/controls/OrbitControls.js';
 const canvas=document.querySelector('canvas');
 try{
@@ -28,13 +28,16 @@ const curve=new THREE.CubicBezierCurve3(new THREE.Vector3(0,.3,0),new THREE.Vect
 for(const x of [.012,.085,.25,.415,.488]){const h=(x<.02||x>.48)?.023:.047;box(g,.007,h,.004,x,.3-h/2,.005,rimMat);const hole=mesh(new THREE.CircleGeometry(.0023,12),recess,g,[x,.3-h+.005,.0073]);}
 for(const x of [.085,.25,.415]){box(g,.006,.059,.014,x,.039,.013,rimMat);box(g,.006,.005,.156,x,.011,.093,rimMat);box(g,.011,.009,.013,x,.004,.168,rimMat);rod(g,[x,.008,.145],[x,-.001,.145],.003,recess);}
 return g;}
-function lampModel(){const g=new THREE.Group();g.name='Direct Light V-Garden DL AR8';
-// Manufacturer: 500 mm overall projection and 50.6 mm head diameter.
-// Stem diameter, base and head depth are photo-derived approximations.
-rod(g,[0,0,.012],[0,0,.493],.0048,black);rod(g,[0,0,0],[0,0,.014],.024,black);
-for(const x of [-.015,.015])rod(g,[x,0,.013],[x,0,.015],.0022,recess);
-rod(g,[0,-.0205,.492],[0,-.0205,.5],.0253,black);rod(g,[0,-.0205,.490],[0,-.0205,.4915],.0205,diffuser);
-return g;}
+function lampModel(){
+ const g=new THREE.Group();g.name='GreenUP Light-up LJVGD1';
+ const head=new THREE.Vector3(0,0,.57), direction=new THREE.Vector3(0,1.36,-.27).normalize();
+ const end=(distance)=>head.clone().addScaledVector(direction,distance).toArray();
+ box(g,.045,.06,.01,0,0,.005,black);
+ rod(g,[0,0,.01],head.toArray(),.006,black);
+ rod(g,end(-.035),end(.025),.027,black);
+ rod(g,end(.025),end(.028),.022,diffuser);
+ return g;
+}
 const assembly=new THREE.Group();scene.add(assembly);const wall=new THREE.Group(),modules=new THREE.Group(),lamps=new THREE.Group();assembly.add(wall,modules,lamps);const architecture=createArchitecture(wall);
 const proto=moduleModel();for(let row=0;row<14;row++)for(let col=0;col<19;col++){if(row===1&&col===16)continue;const m=proto.clone();m.position.set(.15+col*.5,.225+row*.3,.0005);m.userData.label=`M${String(row*19+col+1).padStart(3,'0')} · coluna ${col+1}, fileira ${row+1}`;modules.add(m);}
 // Batch repeated module meshes by shared geometry/material, instead of thousands of draw calls.
@@ -42,16 +45,26 @@ function batchRepeatedMeshes(group){group.updateMatrixWorld(true);const inv=grou
 batchRepeatedMeshes(modules);
 const vegetation=createVegetation(assembly,mobileMode);document.getElementById('vegetation').onchange=e=>{vegetation.visible=e.target.checked;render();};
 const lampProto=lampModel();
-// Base rear surface touches the internal rear face at z=4 mm.
-// Only mounting screw shanks penetrate the module rear and enter the wall.
 const projectedLights=[];
-function addEmission(lamp){const spot=new THREE.SpotLight(0xffc58a,0,1.8,Math.PI/3,.65,2);spot.position.set(0,-.0205,.485);const target=new THREE.Object3D();target.position.set(0,-.17,-.3);lamp.add(target,spot);spot.target=target;spot.visible=false;projectedLights.push(spot);}
-// Alternate 7/6/7/6 bands. Even bands are centred in the gaps of the odd bands.
-const lampHeights=[.750,1.550,2.550,3.650];
-const lampCounts=[7,6,7,6];let lampNumber=0;
-for(let r=0;r<4;r++)for(let c=0;c<lampCounts[r];c++){const lamp=lampProto.clone();const x=(c+(r%2?1:.5))*(9.8/7);lamp.position.set(x,lampHeights[r],.004);
-for(const dx of [-.015,.015])rod(lamp,[dx,0,-.035],[dx,0,.014],.0018,black);
-lamp.userData.label=`L${String(++lampNumber).padStart(2,'0')} · DL AR8 · eixo a ${Math.round(lampHeights[r]*100)} cm do piso`;addEmission(lamp);lamps.add(lamp);}
+function addEmission(lamp){
+ const direction=new THREE.Vector3(0,1.36,-.27).normalize();
+ const spot=new THREE.SpotLight(0xffc990,0,4,Math.PI/12,.45,2);
+ spot.position.set(0,0,.57);spot.position.addScaledVector(direction,.029);
+ const target=new THREE.Object3D();target.position.set(0,1.36,.30);
+ lamp.add(target,spot);spot.target=target;spot.visible=false;projectedLights.push(spot);
+}
+const lampHeights=[.14,4.54];
+const lampXs=Array.from({length:11},(_,column)=>.40+column*.90);
+for(let row=0;row<lampHeights.length;row++){
+ for(const [column,x] of lampXs.entries()){
+  const lamp=lampProto.clone();
+  lamp.position.set(x,lampHeights[row],0);
+  if(row===1)lamp.rotation.z=Math.PI;
+  const id=String(row*lampXs.length+column+1).padStart(2,'0');
+  lamp.userData.label='L'+id+' · GreenUP Light-up · '+Math.round(lampHeights[row]*100)+' cm do piso';
+  addEmission(lamp);lamps.add(lamp);
+ }
+}
 // Conceptual electrical layout: embedded boxes and orthogonal conduit centre lines.
 // X-ray inspection materials reveal the concealed system without changing its physical position.
 const electrical=new THREE.Group();electrical.name='Elétrica · estudo de percurso';assembly.add(electrical);
@@ -63,31 +76,32 @@ const lidMat=new THREE.MeshStandardMaterial({color:0x87c5db,transparent:true,opa
 let conduitLength=0;
 function conduit(a,b){conduitLength+=new THREE.Vector3(...a).distanceTo(new THREE.Vector3(...b));const o=rod(electrical,a,b,.01,conduitMat);o.renderOrder=30;}
 function electricalBox(x,y,name,junction=false){const w=.05,h=.10,d=.045;const g=new THREE.Group();
-if(!junction){const moduleCol=Math.floor((x-.15)/.5),moduleX=.15+moduleCol*.5;const localX=x-moduleX;const pointX=moduleX+Math.max(.06,Math.min(.44,localX));const moduleY=.225+Math.floor((y-.225)/.3)*.3;const pointY=moduleY+.150;
-conduit([x,y,-.035],[pointX,y,-.035]);conduit([pointX,y,-.035],[pointX,pointY,-.035]);g.position.set(pointX,pointY,0);
-}else g.position.set(x,y,0);
+g.position.set(x,y,0);
 g.userData.label=name;electrical.add(g);
 for(const dx of [-w/2+.0015,w/2-.0015]){const o=box(g,.003,h,d,dx,0,-d/2,boxMat);o.renderOrder=31;}
 for(const dy of [-h/2+.0015,h/2-.0015]){const o=box(g,w,.003,d,0,dy,-d/2,boxMat);o.renderOrder=31;}
 const rear=box(g,w,h,.002,0,0,-.044,boxMat);rear.renderOrder=31;const lid=box(g,w-.006,h-.006,.002,0,0,.001,lidMat);lid.renderOrder=32;
 if(!junction){
- // Accessible cover on the internal rear wall, fully above the vessel's front lip.
+
  box(g,.05,.10,.008,0,0,.006,pointMat);
  for(const dy of [-.035,.035])rod(g,[0,dy,.010],[0,dy,.012],.0022,pointScrewMat);
 }
 
 }
-const riserX=9.775,zConduit=-.035;
-conduit([9.8,4.5,zConduit],[riserX,4.5,zConduit]);
-const electricHeights=[.675,1.575,2.475,3.675];let previousY=4.5;
-for(let r=3;r>=0;r--){const y=electricHeights[r];conduit([riserX,previousY,zConduit],[riserX,y,zConduit]);previousY=y;electricalBox(riserX,y,`Derivação · faixa ${r+1}`,true);
-const first=(r%2?1:.5)*(9.8/7)+.09;conduit([riserX,y,zConduit],[first,y,zConduit]);
-for(let c=0;c<lampCounts[r];c++){const x=(c+(r%2?1:.5))*(9.8/7),bx=(Math.abs(x+.09-4.9)<.18?5.14:x+.09),id=lampCounts.slice(0,r).reduce((n,v)=>n+v,0)+c+1;electricalBox(bx,y,`Caixa embutida · L${String(id).padStart(2,'0')}`);
-// Short lamp supply lead, distinct from the conduit measurement.
-// Lamp feed stays at the rear; no projecting rod is shown across the vessel.
-}}
+const riserX=9.775,zConduit=-.035,feedHeight=4.60;
+conduit([9.8,feedHeight,zConduit],[riserX,feedHeight,zConduit]);
+conduit([riserX,feedHeight,zConduit],[riserX,lampHeights[0],zConduit]);
+for(const [row,y] of lampHeights.entries()){
+ electricalBox(riserX,y,'Derivação · faixa '+(row+1),true);
+ conduit([riserX,y,zConduit],[lampXs[0]+.09,y,zConduit]);
+ for(const [column,x] of lampXs.entries()){
+  const boxX=row===0 && Math.abs(x-4.9)<.01?5.14:x+.09;
+  const id=String(row*lampXs.length+column+1).padStart(2,'0');
+  electricalBox(boxX,y,'Caixa embutida · L'+id);
+ }
+}
 const electricalToggle=document.getElementById('electrical');electricalToggle.onchange=e=>{electrical.visible=e.target.checked;render();};
-document.getElementById('electricalSummary').textContent=`26 caixas de luminárias + 4 derivações · aproximadamente ${conduitLength.toFixed(1).replace('.',',')} m de percurso`;
+document.getElementById('electricalSummary').textContent=`22 caixas de luminárias + 2 derivações · aproximadamente ${conduitLength.toFixed(1).replace('.',',')} m de percurso`;
 // Water supply concept: independent right-hand riser, two separately valved outlets.
 const plumbing=new THREE.Group();plumbing.name='Água · uso e irrigação';assembly.add(plumbing);
 const waterPipeMat=new THREE.MeshStandardMaterial({color:0x1977ba,roughness:.6});const brassMat=new THREE.MeshStandardMaterial({color:0xb99b54,roughness:.45,metalness:.65});
@@ -119,7 +133,7 @@ const display=new THREE.Group();scene.add(display);display.visible=false;let mod
 let renderPending=false,lastWidth=0,lastHeight=0;function render(){if(renderPending)return;renderPending=true;requestAnimationFrame(()=>{renderPending=false;drawFrame();});}
 function drawFrame(){const w=canvas.clientWidth,h=canvas.clientHeight;if(w!==lastWidth||h!==lastHeight){renderer.setSize(w,h,false);lastWidth=w;lastHeight=h;}const aspect=w/h;const s=mode==='modulo'||mode==='luminaria'?Math.max(span,span/aspect):Math.max(span,12/aspect);camera.left=-s*aspect/2;camera.right=s*aspect/2;camera.top=s/2;camera.bottom=-s/2;camera.updateProjectionMatrix();renderer.render(scene,camera);}
 function pose(eye,target){camera.zoom=1;camera.position.set(...eye);controls.target.set(...target);controls.update();render();}
-const titles={geral:'Perspectiva geral',frente:'Elevação frontal · 19 × 14',lado:'Perfil · parede de 200 mm',topo:'Vista superior',modulo:'Plastwall 12 L · inspeção 3D',luminaria:'Direct Light DL AR8 · inspeção 3D'};
+const titles={geral:'Perspectiva geral',frente:'Elevação frontal · 19 × 14',lado:'Perfil · parede de 200 mm',topo:'Vista superior',modulo:'Plastwall 12 L · inspeção 3D',luminaria:'GreenUP Light-up · inspeção 3D'};
 function view(v){mode=v;document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===v));document.querySelector('#viewLabel').textContent=titles[v];assembly.visible=!['modulo','luminaria'].includes(v);display.clear();display.visible=!assembly.visible;camera.up.set(0,1,0);span=7.8;
 if(v==='modulo'){display.add(proto.clone());span=.62;pose([.85,.53,.85],[.25,.15,.09]);}
 else if(v==='luminaria'){const detail=lampProto.clone();addEmission(detail);projectedLights.at(-1).intensity=document.getElementById('glow').checked?4:0;projectedLights.at(-1).visible=document.getElementById('glow').checked&&!mobileMode;display.add(detail);span=.65;pose([.65,.37,.78],[0,-.01,.25]);}
