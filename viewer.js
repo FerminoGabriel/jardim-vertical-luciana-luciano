@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {createVegetation} from './vegetation.js?v=29';
+import {createVegetation} from './vegetation.js?v=32';
 import {createArchitecture} from './architecture.js?v=31';
 import {OrbitControls} from './vendor/three/examples/jsm/controls/OrbitControls.js';
 const canvas=document.querySelector('canvas');
@@ -89,6 +89,34 @@ return g;}
 function lampModel(){
  const g=new THREE.Group();g.name='GreenUP Light-up LJVGD1';
  const head=new THREE.Vector3(0,0,.57), direction=new THREE.Vector3(0,1.36,-.27).normalize();
+ if(!mobileMode){
+  const powderCoat=new THREE.MeshStandardMaterial({color:0x1e211f,metalness:.42,roughness:.67});
+  const anodized=new THREE.MeshStandardMaterial({color:0x111311,metalness:.67,roughness:.43});
+  const lens=new THREE.MeshPhysicalMaterial({color:0xb7ab8f,roughness:.24,clearcoat:.64});
+  function axial(profile,material,center,axis){
+   const geometry=new THREE.LatheGeometry(profile.map(([r,y])=>new THREE.Vector2(r,y)),48);
+   const part=mesh(geometry,material,g,center.toArray());
+   part.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),axis);
+   return part;
+  }
+  const plate=new THREE.Shape();
+  const w=.0225,h=.030,r=.004;
+  plate.moveTo(-w+r,-h);plate.lineTo(w-r,-h);plate.quadraticCurveTo(w,-h,w,-h+r);
+  plate.lineTo(w,h-r);plate.quadraticCurveTo(w,h,w-r,h);plate.lineTo(-w+r,h);
+  plate.quadraticCurveTo(-w,h,-w,h-r);plate.lineTo(-w,-h+r);plate.quadraticCurveTo(-w,-h,-w+r,-h);
+  mesh(new THREE.ExtrudeGeometry(plate,{depth:.008,bevelThickness:.001,bevelSize:.001,bevelSegments:2,curveSegments:6}),powderCoat,g,[0,0,.001]);
+  const forward=new THREE.Vector3(0,0,1);
+  for(const y of [-.019,.019]){
+   axial([[0,0],[.0027,0],[.0027,.001],[.0021,.0017],[0,.0017]],anodized,new THREE.Vector3(0,y,.01),forward);
+   box(g,.0032,.00065,.00035,0,y,.01175,recess);
+  }
+  axial([[0,0],[.009,0],[.009,.011],[.007,.018],[.006,.019],[.006,.565],[.009,.567],[.009,.574],[0,.574]],powderCoat,new THREE.Vector3(0,0,.008),forward);
+  axial([[0,-.035],[.021,-.035],[.025,-.032],[.027,-.027],[.027,.018],[.026,.022],[.023,.022],[.023,.025],[0,.025]],powderCoat,head,direction);
+  axial([[.023,.020],[.027,.020],[.028,.022],[.028,.025],[.026,.028],[.022,.028]],anodized,head,direction);
+  axial([[0,.025],[.020,.025],[.022,.026],[.022,.027],[.016,.028],[0,.0285]],lens,head,direction);
+  axial([[0,.0285],[.014,.0285],[.0135,.029],[0,.029]],diffuser,head,direction);
+  return g;
+ }
  const end=(distance)=>head.clone().addScaledVector(direction,distance).toArray();
  box(g,.045,.06,.01,0,0,.005,black);
  rod(g,[0,0,.01],head.toArray(),.006,black);
