@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {createVegetation} from './vegetation.js?v=29';
-import {createArchitecture} from './architecture.js?v=24';
+import {createArchitecture} from './architecture.js?v=30';
 import {OrbitControls} from './vendor/three/examples/jsm/controls/OrbitControls.js';
 const canvas=document.querySelector('canvas');
 try{
@@ -96,7 +96,7 @@ function lampModel(){
  rod(g,end(.025),end(.028),.022,diffuser);
  return g;
 }
-const assembly=new THREE.Group();scene.add(assembly);const wall=new THREE.Group(),modules=new THREE.Group(),lamps=new THREE.Group();assembly.add(wall,modules,lamps);const architecture=createArchitecture(wall);
+const assembly=new THREE.Group();scene.add(assembly);const wall=new THREE.Group(),modules=new THREE.Group(),lamps=new THREE.Group();assembly.add(wall,modules,lamps);const architecture=createArchitecture(wall,mobileMode);
 const proto=moduleModel();for(let row=0;row<14;row++)for(let col=0;col<19;col++){if(row===1&&col===16)continue;const m=proto.clone();m.position.set(.15+col*.5,.225+row*.3,.0005);m.userData.label=`M${String(row*19+col+1).padStart(3,'0')} · coluna ${col+1}, fileira ${row+1}`;modules.add(m);}
 // Batch repeated module meshes by shared geometry/material, instead of thousands of draw calls.
 function batchRepeatedMeshes(group){group.updateMatrixWorld(true);const inv=group.matrixWorld.clone().invert(),buckets=new Map();group.traverse(o=>{if(!o.isMesh)return;const key=o.geometry.uuid+':'+o.material.uuid;if(!buckets.has(key))buckets.set(key,{geometry:o.geometry,material:o.material,matrices:[]});buckets.get(key).matrices.push(new THREE.Matrix4().multiplyMatrices(inv,o.matrixWorld));});group.clear();for(const b of buckets.values()){const inst=new THREE.InstancedMesh(b.geometry,b.material,b.matrices.length);b.matrices.forEach((m,i)=>inst.setMatrixAt(i,m));inst.computeBoundingSphere();group.add(inst);}}

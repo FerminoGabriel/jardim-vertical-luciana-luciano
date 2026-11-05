@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-export function createArchitecture(parent){
+export function createArchitecture(parent,lightweight=true){
 const layers={};function group(key){const g=new THREE.Group();g.name=key;layers[key]=g;parent.add(g);return g;}
 let seed=73281;function rand(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;}
 function noiseTexture(base,range=12,cloud=false){const c=document.createElement('canvas');c.width=c.height=256;const ctx=c.getContext('2d');const im=ctx.createImageData(256,256);for(let y=0;y<256;y++)for(let x=0;x<256;x++){const i=(y*256+x)*4;const n=(rand()-.5)*range+(cloud?(Math.sin(x*.03+y*.02)+Math.sin(x*.08-y*.04))*3:0);for(let k=0;k<3;k++)im.data[i+k]=base[k]+n;im.data[i+3]=255;}ctx.putImageData(im,0,0);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;return t;}
@@ -41,11 +41,15 @@ const tileMaterials=Array.from({length:6},()=>{const m=mat(new THREE.Color().set
 for(let ix=-1;ix<9;ix++){const xa=Math.max(0,.7+ix*1.2),xb=Math.min(9.8,.7+(ix+1)*1.2);if(xb<=xa)continue;for(const [za,zb] of [[0,.15],[.15,1.35],[1.35,1.5]]){box(floor,xb-xa-.002,.0092,zb-za-.002,(xa+xb)/2,-.0046,(za+zb)/2,tileMaterials[Math.floor(rand()*6)]);}}
 // Left return: 1500 mm long and 4650 mm tall; stone is a separate 40 mm facing layer.
 box(left,.2,4.65,1.5,-.1,2.325,.75,rearMat);
+if(lightweight){
 const stoneMats=Array.from({length:12},()=>mat(new THREE.Color().setHSL(.095+rand()*.035,.09+rand()*.13,.35+rand()*.24),null,.002));
 // Irregular, shared polygon boundaries avoid the rectangular appearance of stone tiles.
 const rows=16,cols=5,grid=[];for(let r=0;r<=rows;r++){grid[r]=[];for(let c=0;c<=cols;c++)grid[r][c]=[c===0?0:c===cols?1.5:c*1.5/cols+(rand()-.5)*.18,r===0?0:r===rows?4.65:r*4.65/rows+(rand()-.5)*.13];}
 box(stone,.002,4.65,1.5,.001,2.325,.75,mat(0x777266,null,.002));
 for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const ps=[grid[r][c],grid[r][c+1],grid[r+1][c+1],grid[r+1][c]];const cz=ps.reduce((s,p)=>s+p[0],0)/4,cy=ps.reduce((s,p)=>s+p[1],0)/4;const ring=[];for(let j=0;j<4;j++){const a=ps[j],b=ps[(j+1)%4];ring.push([cz+(a[0]-cz)*.985,cy+(a[1]-cy)*.985]);ring.push([cz+((a[0]+b[0])/2-cz)*.99,cy+((a[1]+b[1])/2-cy)*.99]);}const verts=[],faces=[];verts.push(.024+rand()*.016,cy,cz);for(const [z,y] of ring)verts.push(.02+rand()*.015,y,z);for(const [z,y] of ring)verts.push(.002,y,z);const n=ring.length;for(let j=0;j<n;j++){let k=(j+1)%n;faces.push(0,j+1,k+1,j+1,j+1+n,k+1+n,j+1,k+1+n,k+1);}const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));geo.setIndex(faces);geo.computeVertexNormals();const m=stoneMats[Math.floor(rand()*stoneMats.length)].clone();m.flatShading=true;stone.add(new THREE.Mesh(geo,m));}
+}else{
+ addDetailedMoledo(stone,1.5,4.65);
+}
 // Right return has a clear opening across its 1500 mm length, with a 2500 mm-high door.
 box(right,.2,2.15,1.5,9.9,3.575,.75,rearMat);
 const alu=new THREE.MeshStandardMaterial({color:0x222522,roughness:.38,metalness:.75});const glass=new THREE.MeshPhysicalMaterial({color:0xbdd4ce,roughness:.08,metalness:0,transparent:true,opacity:.19,depthWrite:false,side:THREE.DoubleSide});
@@ -72,4 +76,167 @@ box(drain,edge,.004,grateSize-edge*2,4.9-grateSize/2+edge/2,.002,.07,grateMat);
 box(drain,edge,.004,grateSize-edge*2,4.9+grateSize/2-edge/2,.002,.07,grateMat);
 for(let i=0;i<9;i++)box(drain,.004,.004,.104,4.9-.048+i*.012,.002,.07,grateMat);
 return layers;
+}
+
+
+function addDetailedMoledo(group,width,height){
+ let seed=91379;
+ const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
+ const {colorMap,surfaceMap}=mineralMaps();
+ const bed=new THREE.Mesh(new THREE.BoxGeometry(.009,height,width),
+  new THREE.MeshStandardMaterial({color:0x574d3e,map:colorMap,bumpMap:surfaceMap,bumpScale:.003,roughness:1}));
+ bed.position.set(.0045,height/2,width/2);
+ group.add(bed);
+
+ // Clip each irregular cell to its neighbors and to the wall perimeter.
+ const sites=[];
+ const columns=6,rows=18;
+ for(let y=0;y<rows;y++)for(let x=0;x<columns;x++){
+  sites.push([(x+.12+random()*.76)*width/columns,(y+.10+random()*.80)*height/rows]);
+ }
+ const cells=[];
+ for(const site of sites){
+  let cell=[[0,0],[width,0],[width,height],[0,height]];
+  for(const neighbor of sites){
+   if(site===neighbor)continue;
+   const dx=neighbor[0]-site[0],dy=neighbor[1]-site[1];
+   const limit=(dx*(site[0]+neighbor[0])+dy*(site[1]+neighbor[1]))/2;
+   cell=clipStonePolygon(cell,dx,dy,limit);
+  }
+  // Split selected blocks into unequal smaller pieces, like fitted stone offcuts.
+  if(random()<.32){
+   const angle=random()*Math.PI,dx=Math.cos(angle),dy=Math.sin(angle);
+   const limit=dx*site[0]+dy*site[1]+(random()-.5)*.07;
+   const halves=[clipStonePolygon(cell,dx,dy,limit),clipStonePolygon(cell,-dx,-dy,-limit)];
+   if(halves.every(poly=>poly.length>=3&&stoneArea(poly)>.006)){
+    cells.push(...halves);
+    continue;
+   }
+  }
+  cells.push(cell);
+ }
+
+ const positions=[],colors=[],uvs=[],indices=[];
+ const palette=[0xa89275,0x9a8a74,0xb5a58d,0x82715d,0xc1af91,0x938e81,0xa18162,0xc5baa5,0x766553];
+ for(const poly of cells){
+  const center=poly.reduce(([x,y],p)=>[x+p[0]/poly.length,y+p[1]/poly.length],[0,0]);
+  const tint=new THREE.Color(palette[Math.floor(random()*palette.length)]);
+  const thickness=.027+random()*.013;
+  const slopeX=(random()-.5)*.08,slopeY=(random()-.5)*.08;
+  const tilt=random()*Math.PI,cos=Math.cos(tilt),sin=Math.sin(tilt);
+  const uOffset=random(),vOffset=random();
+  const ring=poly.flatMap((a,i)=>{
+   const b=poly[(i+1)%poly.length];
+   const t=.25+random()*.5;
+   return [a,[THREE.MathUtils.lerp(a[0],b[0],t),THREE.MathUtils.lerp(a[1],b[1],t)]];
+  });
+  const gap=.002+random()*.002;
+  const chipping=ring.map(()=>.002+random()*.009);
+  function vertex(x,z,y,shade){
+   positions.push(x,y,z);
+   uvs.push((cos*z+sin*y)*1.65+uOffset,(-sin*z+cos*y)*1.65+vOffset);
+   colors.push(tint.r*shade,tint.g*shade,tint.b*shade);
+  }
+  const base=positions.length/3,n=ring.length;
+  for(let layer=0;layer<4;layer++){
+   ring.forEach(([z,y],i)=>{
+    const dz=z-center[0],dy=y-center[1],radius=Math.hypot(dz,dy);
+    const inset=[gap,gap,gap+chipping[i],radius*.46][layer];
+    const scale=Math.max(.12,1-inset/radius);
+    const relief=slopeX*dz+slopeY*dy+(random()-.5)*.004;
+    const faceDepth=THREE.MathUtils.clamp(thickness+relief,.023,.040);
+    const depth=[.005,faceDepth-.009,faceDepth,Math.min(.04,faceDepth+.0015)][layer];
+    const shade=[.56,.70,.94,1][layer]*(.91+random()*.18);
+    vertex(depth,center[0]+dz*scale,center[1]+dy*scale,shade);
+   });
+  }
+  const peak=positions.length/3;
+  vertex(Math.min(.04,thickness+.001),...center,1);
+  for(let i=0;i<n;i++){
+   const next=(i+1)%n;
+   for(let layer=0;layer<3;layer++){
+    const a=base+layer*n,b=a+n;
+    indices.push(a+i,b+i,a+next,a+next,b+i,b+next);
+   }
+   indices.push(base+3*n+i,peak,base+3*n+next);
+  }
+ }
+ const geometry=new THREE.BufferGeometry();
+ geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+ geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));
+ geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
+ geometry.setIndex(indices);
+ geometry.computeVertexNormals();
+ const material=new THREE.MeshStandardMaterial({
+  vertexColors:true,map:colorMap,roughnessMap:surfaceMap,
+  bumpMap:surfaceMap,bumpScale:.006,roughness:1
+ });
+ group.add(new THREE.Mesh(geometry,material));
+}
+
+function clipStonePolygon(poly,dx,dy,limit){
+ const result=[];
+ for(let i=0;i<poly.length;i++){
+  const a=poly[i],b=poly[(i+1)%poly.length];
+  const da=dx*a[0]+dy*a[1]-limit,db=dx*b[0]+dy*b[1]-limit;
+  if(da<=0)result.push(a);
+  if((da<0&&db>0)||(da>0&&db<0)){
+   const t=da/(da-db);
+   result.push([THREE.MathUtils.lerp(a[0],b[0],t),THREE.MathUtils.lerp(a[1],b[1],t)]);
+  }
+ }
+ return result;
+}
+
+function stoneArea(poly){
+ return Math.abs(poly.reduce((area,[x,y],i)=>{
+  const [nx,ny]=poly[(i+1)%poly.length];
+  return area+x*ny-y*nx;
+ },0))*.5;
+}
+
+function mineralMaps(){
+ const size=512;
+ function makeImage(){
+  const canvas=document.createElement('canvas');
+  canvas.width=canvas.height=size;
+  const context=canvas.getContext('2d');
+  return {canvas,context,image:context.createImageData(size,size)};
+ }
+ const color=makeImage(),surface=makeImage();
+ function hash(x,y){
+  const n=Math.imul(x+631,374761393)^Math.imul(y+127,668265263);
+  return ((Math.imul(n^(n>>>13),1274126177)^(n>>>16))>>>0)/4294967295;
+ }
+ function noise(u,v,frequency){
+  const x=u*frequency,y=v*frequency;
+  const i=Math.floor(x),j=Math.floor(y);
+  const f=x-i,g=y-j;
+  const a=f*f*(3-2*f),b=g*g*(3-2*g);
+  const wrap=n=>((n%frequency)+frequency)%frequency;
+  return THREE.MathUtils.lerp(
+   THREE.MathUtils.lerp(hash(wrap(i),wrap(j)),hash(wrap(i+1),wrap(j)),a),
+   THREE.MathUtils.lerp(hash(wrap(i),wrap(j+1)),hash(wrap(i+1),wrap(j+1)),a),b);
+ }
+ for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+  const u=x/size,v=y/size;
+  const patch=noise(u,v,8),grain=noise(u,v,148),crystals=hash(x,y);
+  const strata=noise(u+.038*Math.sin(2*Math.PI*v),v,27);
+  const pits=Math.pow(Math.max(0,1-noise(u,v,62)*2.2),2);
+  const fleck=Math.max(0,crystals-.92)*420;
+  const tone=216+33*(patch-.5)+26*(strata-.5)+34*(grain-.5)-55*pits+fleck;
+  const index=(y*size+x)*4;
+  color.image.data.set([tone+3,tone,tone-5,255],index);
+  surface.image.data.set([110+51*strata+66*grain+19*crystals-74*pits,218+24*grain+12*pits,255,255],index);
+ }
+ function texture(source){
+  source.context.putImageData(source.image,0,0);
+  const map=new THREE.CanvasTexture(source.canvas);
+  map.wrapS=map.wrapT=THREE.RepeatWrapping;
+  map.anisotropy=8;
+  return map;
+ }
+ const colorMap=texture(color);
+ colorMap.colorSpace=THREE.SRGBColorSpace;
+ return {colorMap,surfaceMap:texture(surface)};
 }
