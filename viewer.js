@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {createVegetation} from './vegetation.js?v=27';
+import {createVegetation} from './vegetation.js?v=28';
 import {createArchitecture} from './architecture.js?v=24';
 import {OrbitControls} from './vendor/three/examples/jsm/controls/OrbitControls.js';
 const canvas=document.querySelector('canvas');

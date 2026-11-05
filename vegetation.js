@@ -11,7 +11,7 @@ const broad=leafGeometry(),narrow=leafGeometry(true),texture=leafTexture(),varie
 const buckets=palette.map((color,i)=>({geometry:i===3||i===5?narrow:broad,material:new THREE.MeshLambertMaterial({color,map:i===3?variegated:texture,side:THREE.DoubleSide}),matrices:[],colors:[]}));
 const matrix=new THREE.Matrix4(),q=new THREE.Quaternion(),scale=new THREE.Vector3(),position=new THREE.Vector3(),up=new THREE.Vector3(0,1,0);
 function clearServices(x,y){return x>8.10&&x<8.76&&y>.23&&y<.91;}
-function leaf(kind,x,y,z,length,angle,tilt=0,overServiceOpening=false){if(x<.14||x>9.66||y<.22||y>4.46||(!overServiceOpening&&clearServices(x,y)))return;position.set(x,y,z);q.setFromEuler(new THREE.Euler(tilt,(random()-.5)*1.0,angle));const sizeBoost=lightweight?1.3:1;scale.set(length*sizeBoost,length*sizeBoost,length*sizeBoost);matrix.compose(position,q,scale);buckets[kind].matrices.push(matrix.clone());const v=.82+random()*.28;buckets[kind].colors.push(new THREE.Color(v,v*(.96+random()*.08),v));}
+function leaf(kind,x,y,z,length,angle,tilt=0){if(x<.14||x>9.66||y<.22||y>4.46||clearServices(x,y))return;position.set(x,y,z);q.setFromEuler(new THREE.Euler(tilt,(random()-.5)*1.0,angle));const sizeBoost=lightweight?1.3:1;scale.set(length*sizeBoost,length*sizeBoost,length*sizeBoost);matrix.compose(position,q,scale);buckets[kind].matrices.push(matrix.clone());const v=.82+random()*.28;buckets[kind].colors.push(new THREE.Color(v,v*(.96+random()*.08),v));}
 const stems=[];
 function stem(a,b,r=.0012){const av=new THREE.Vector3(...a),bv=new THREE.Vector3(...b),d=bv.clone().sub(av);matrix.compose(av.add(bv).multiplyScalar(.5),q.setFromUnitVectors(up,d.clone().normalize()),scale.set(r,d.length(),r));stems.push(matrix.clone());}
 function band(x,y){const f=x+.64*Math.sin(y*.95)+.18*Math.sin(y*2.5);const t=((f%3.35)+3.35)%3.35;if(t<.42)return 4;if(t<1.10)return 1;if(t<1.78)return 5;if(t<2.43)return 2;if(t<2.85)return 3;return 0;}
@@ -24,21 +24,6 @@ stem([rootX,rootY,rootZ],[rootX+lean,rootY+.13-vineLength,.22]);
 for(let j=0;j<(lightweight?4:6);j++){const angle=(j/(lightweight?4:6))*Math.PI*2+(random()-.5)*.5;const length=(kind===3?.19:.14)+random()*.10;leaf(kind,rootX,rootY+.04,.22+random()*.13,length,angle,random()*.8);}
 if(kind===5){for(let f=0;f<(lightweight?1:2);f++){const fx=rootX+(f-.5)*.13,fy=rootY+.09,fl=.33+random()*.25;stem([fx,fy,.22],[fx+.04,fy-fl,.29],.0009);for(let j=0;j<(lightweight?5:8);j++){const t=j/(lightweight?5:8),w=.065*(1-t*.65);for(const side of [-1,1])leaf(5,fx+.04*t,fy-fl*t,.26+random()*.03,w,side*1.05+Math.PI,.1);}}}
 }}
-// Vines from the modules above screen the taps while leaving the service opening accessible.
-for(let vine=0;vine<7;vine++){
-  const rootX=8.13+vine*.091;
-  const rootY=.96+(random()-.5)*.04;
-  const drop=.49+random()*.11;
-  const sway=(random()-.5)*.12;
-  const bend=[rootX+sway*.35,rootY-.15,.39];
-  stem([rootX,rootY,.18],bend);
-  stem(bend,[rootX+sway,rootY-drop,.41]);
-  for(let i=0;i<(lightweight?7:10);i++){
-    const t=i/(lightweight?6:9);
-    const angle=Math.PI+(i%2?1:-1)*(.72+random()*.60);
-    leaf(vine%3===0?1:0,rootX+sway*t,rootY-.12-(drop-.12)*t,.39+.025*t,.15+random()*.08,angle,(random()-.5)*.65,true);
-  }
-}
 let total=0;for(const b of buckets){const count=b.matrices.length;if(!count)continue;const inst=new THREE.InstancedMesh(b.geometry,b.material,count);for(let i=0;i<count;i++){inst.setMatrixAt(i,b.matrices[i]);inst.setColorAt(i,b.colors[i]);}inst.computeBoundingSphere();garden.add(inst);total+=count;}
 const stemMesh=new THREE.InstancedMesh(new THREE.CylinderGeometry(1,1,1,5,1),new THREE.MeshStandardMaterial({color:0x425c27,roughness:1}),stems.length);stems.forEach((m,i)=>stemMesh.setMatrixAt(i,m));stemMesh.computeBoundingSphere();garden.add(stemMesh);
 garden.userData={leaves:total,renderBatches:garden.children.length};return garden;
